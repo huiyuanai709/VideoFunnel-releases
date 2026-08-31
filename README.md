@@ -19,7 +19,7 @@
 | 功能 | 说明 |
 | --- | --- |
 | 分块 + 连接复用 | 远程文件切成固定大小块，长连接顺序读取，拖动时新开 Range |
-| 天翼云盘 (189) | Web UI 粘贴 Cookie 后扫描个人云 / 家庭云影视 |
+| 天翼云盘 (189) | Web UI 粘贴 Cookie 后扫描个人云 / 家庭云影视；本地 `.cas` 秒传到当前个人云目录 |
 | WebDAV / SMB | `http://<host>:8080/dav` 或 `smb://<host>:1445/VideoFunnel` |
 | 粘贴直链 | 任意 HTTP 视频 URL，网页播放或生成 VLC / mpv 漏斗链接 |
 | 自动更新 | 启动时检查 [Releases](https://github.com/huiyuanai709/VideoFunnel-releases/releases/latest)，可自动下载替换并重启 |
