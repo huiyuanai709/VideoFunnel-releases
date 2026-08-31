@@ -19,8 +19,8 @@
 | 功能 | 说明 |
 | --- | --- |
 | 分块 + 连接复用 | 远程文件切成固定大小块，长连接顺序读取，拖动时新开 Range |
-| 天翼云盘 (189) | Web UI 粘贴 Cookie 后扫描个人云 / 家庭云影视；本地 `.cas` 秒传到当前个人云目录 |
-| WebDAV / SMB | `http://<host>:8080/dav` 或 `smb://<host>:1445/VideoFunnel` |
+| 天翼云盘 (189) | Web UI 粘贴 Cookie 后扫描个人云 / 家庭云影视；本地 / 粘贴 / 当前目录 `.cas` 秒传到个人云后播放 |
+| WebDAV / SMB | `http://<host>:8080/dav`（真实视频）；爆米花用 `http://<host>:8080/dav/strm`；`smb://<host>:1445/VideoFunnel` |
 | 粘贴直链 | 任意 HTTP 视频 URL，网页播放或生成 VLC / mpv 漏斗链接 |
 | 自动更新 | 启动时检查 [Releases](https://github.com/huiyuanai709/VideoFunnel-releases/releases/latest)，可自动下载替换并重启 |
 | 开机自启 | Windows 启动文件夹 / Linux systemd 用户单元 / macOS LaunchAgent |
@@ -97,6 +97,7 @@ chmod +x vf
 - **Cookie 绑定登录时的公网 IP**，请在**同一台电脑**（或同一出口）复制 Cookie 并运行本程序
 - 扫描后的文件可通过 **WebDAV**（推荐）或 **SMB** 挂载到播放器：
   - WebDAV: `http://<host>:8080/dav`
+  - 网易爆米花：添加 WebDAV，路径填 **`/dav/strm`**（虚拟 `.strm` 树，播放仍走本机漏斗）
   - SMB: `smb://<host>:1445/VideoFunnel`（默认端口 1445，避免与系统 445 冲突）
 
 ## 自动更新
