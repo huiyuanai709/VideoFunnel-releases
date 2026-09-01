@@ -95,6 +95,9 @@ chmod +x vf
 
 - 在 **cloud.189.cn** 登录后，F12 → Network → `listFiles.action`，复制整段 curl（含 Cookie）
 - **Cookie 绑定登录时的公网 IP**，请在**同一台电脑**（或同一出口）复制 Cookie 并运行本程序
+- 登录方式（影院页「登录方式」）：
+  - **网页 Cookie**（默认）：F12 → `listFiles.action` 复制 curl；绑定出口 IP
+  - **客户端账密 / 扫码**：非官方 PC 接口（appId `8025431004`），会拿到 AccessToken；若提示设备验证请到天翼安全中心关闭
 - 扫描后的文件可通过 **WebDAV**（推荐）或 **SMB** 挂载到播放器：
   - WebDAV: `http://<host>:8080/dav`
   - 网易爆米花：添加 WebDAV，路径填 **`/dav/strm`**（虚拟 `.strm` 树，播放仍走本机漏斗）
