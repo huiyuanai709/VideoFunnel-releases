@@ -6,7 +6,7 @@
 
 ## 界面预览
 
-影院风格 Web UI：天翼云盘扫描、自动更新 / 开机自启、粘贴直链、底部内置播放器。
+影院风格 Web UI：天翼云盘 / 夸克网盘扫描、自动更新 / 开机自启、粘贴直链、底部内置播放器。
 
 ![Video Funnel Web UI](docs/screenshots/web-ui-overview.png)
 
@@ -20,6 +20,7 @@
 | --- | --- |
 | 分块 + 连接复用 | 远程文件切成固定大小块，长连接顺序读取，拖动时新开 Range |
 | 天翼云盘 (189) | Web UI 粘贴 Cookie 后扫描个人云 / 家庭云影视；本地 / 粘贴 / 当前目录 `.cas` 秒传到个人云后播放 |
+| 夸克网盘 | Chrome 粘贴 `pan.quark.cn` Cookie（需 `__puus`）；浏览 / 扫描；本机漏斗播放；WebDAV `/dav/quark` |
 | WebDAV / SMB | `http://<host>:8080/dav`（真实视频）；爆米花用 `http://<host>:8080/dav/strm`；`smb://<host>:1445/VideoFunnel` |
 | 粘贴直链 | 任意 HTTP 视频 URL，网页播放或生成 VLC / mpv 漏斗链接 |
 | 自动更新 | 启动时检查 [Releases](https://github.com/huiyuanai709/VideoFunnel-releases/releases/latest)，可自动下载替换并重启 |
@@ -60,8 +61,9 @@ chmod +x vf
 浏览器打开 **http://127.0.0.1:8080**：
 
 1. **天翼云盘** — 粘贴 cloud.189.cn 的 curl Cookie，保存并扫描
-2. **粘贴直链** — 输入远程视频 URL，网页播放或复制漏斗链接给 VLC / mpv
-3. **更新与开机自启** — 勾选自动更新、登录时启动等选项
+2. **夸克网盘** — 用 Chrome 从 pan.quark.cn 复制 Cookie（需 `__puus`），保存后浏览或扫描
+3. **粘贴直链** — 输入远程视频 URL，网页播放或复制漏斗链接给 VLC / mpv
+4. **更新与开机自启** — 勾选自动更新、登录时启动等选项
 
 局域网其它设备访问：`http://<这台机器的 IP>:8080`
 
@@ -102,6 +104,13 @@ chmod +x vf
   - WebDAV: `http://<host>:8080/dav`
   - 网易爆米花：添加 WebDAV，路径填 **`/dav/strm`**（虚拟 `.strm` 树，播放仍走本机漏斗）
   - SMB: `smb://<host>:1445/VideoFunnel`（默认端口 1445，避免与系统 445 冲突）
+
+夸克网盘说明：
+
+- 用 **Chrome** 打开 **pan.quark.cn**，F12 → Network → 任意网盘请求 → 复制 Cookie（必须含 `__puus`）
+- Firefox 的 Cookie 可能仍是游客。夸克会轮换 `__puus`，程序自动写回配置，不会把完整 Cookie 打进日志
+- 播放走本机 `/play?path=/quark/…` 漏斗（带 Cookie / Referer / UA），不要裸 302 CDN
+- WebDAV：`http://<host>:8080/dav/quark`
 
 ## 自动更新
 
