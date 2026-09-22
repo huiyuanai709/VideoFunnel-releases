@@ -4,6 +4,13 @@
 
 源码仓库是私有的。这里只发布编译好的 **Native AOT** 二进制：解压即可运行，**不需要安装 .NET**。Web UI 已内嵌在单个 `vf` / `vf.exe` 里。
 
+
+## 构建说明
+
+Native AOT 在本仓库的 GitHub Actions 中编译（公开仓额度更宽裕）。工作流会用 `SOURCE_TOKEN` 拉取私有源码仓库 `huiyuanai709/VideoFunnel`，产物只发布到本仓库的 Releases。
+
+私有仓打 `v*` 标签后，会自动 dispatch 到本仓库的 **Publish Native AOT**。
+
 ## 界面预览
 
 影院风格 Web UI：天翼云盘扫描、自动更新 / 开机自启、粘贴直链、底部内置播放器。
