@@ -233,15 +233,19 @@ jobs:
   build-aot-musl:
     name: AOT ${{ matrix.rid }}
     needs: [resolve, test]
-    runs-on: ubuntu-latest
+    # musl-arm64 must NOT use QEMU: ILC crashes with InvalidCastException under
+    # qemu-user. Build it on ubuntu-24.04-arm with a native arm64 Alpine image.
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          - rid: linux-musl-x64
+          - os: ubuntu-latest
+            rid: linux-musl-x64
             platform: linux/amd64
             image: mcr.microsoft.com/dotnet/sdk:11.0.100-rc.1-alpine3.24-aot-amd64
-          - rid: linux-musl-arm64
+          - os: ubuntu-24.04-arm
+            rid: linux-musl-arm64
             platform: linux/arm64
             image: mcr.microsoft.com/dotnet/sdk:11.0.100-rc.1-alpine3.24-aot-arm64v8
     env:
@@ -257,7 +261,8 @@ jobs:
           path: src
 
       - name: Set up QEMU
-        if: matrix.platform != 'linux/amd64'
+        # Only when emulating a foreign arch (should not happen with current matrix).
+        if: runner.arch == 'X64' && matrix.platform == 'linux/arm64'
         uses: docker/setup-qemu-action@v3
 
       - name: Publish Native AOT (Alpine container)
