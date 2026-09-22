@@ -1,0 +1,421 @@
+name: Publish Native AOT
+
+# Builds on this public repo while source stays in private huiyuanai709/VideoFunnel.
+# Required secret: SOURCE_TOKEN — PAT that can read the private source repo
+# (a classic `repo` PAT, e.g. the same one used as RELEASES_TOKEN on the private side).
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Private VideoFunnel git ref (tag, branch, or SHA)"
+        required: true
+        type: string
+        default: "main"
+      tag_name:
+        description: "Release tag (leave empty to use ref when it is v*)"
+        required: false
+        type: string
+        default: ""
+      create_release:
+        description: "Create or update a GitHub Release on this repo"
+        type: boolean
+        default: true
+  repository_dispatch:
+    types: [publish-aot]
+
+permissions:
+  contents: write
+
+env:
+  DOTNET_VERSION: "11.0.100-rc.1.26425.128"
+  PROJECT: VideoFunnel.csproj
+  APP_NAME: vf
+  SOURCE_REPO: huiyuanai709/VideoFunnel
+
+jobs:
+  resolve:
+    name: Resolve source ref
+    runs-on: ubuntu-latest
+    outputs:
+      ref: ${{ steps.meta.outputs.ref }}
+      tag: ${{ steps.meta.outputs.tag }}
+      create_release: ${{ steps.meta.outputs.create_release }}
+      source_sha: ${{ steps.meta.outputs.source_sha }}
+    steps:
+      - name: Resolve
+        id: meta
+        env:
+          GH_TOKEN: ${{ secrets.SOURCE_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "${GH_TOKEN:-}" ]]; then
+            echo "SOURCE_TOKEN is not set on VideoFunnel-releases (needs read access to $SOURCE_REPO)" >&2
+            exit 1
+          fi
+
+          if [[ "${{ github.event_name }}" == "repository_dispatch" ]]; then
+            ref='${{ github.event.client_payload.ref }}'
+            tag='${{ github.event.client_payload.tag_name }}'
+            cr='${{ github.event.client_payload.create_release }}'
+          else
+            ref='${{ inputs.ref }}'
+            tag='${{ inputs.tag_name }}'
+            cr='${{ inputs.create_release }}'
+          fi
+
+          if [[ -z "${ref:-}" ]]; then
+            echo "ref is required" >&2
+            exit 1
+          fi
+          if [[ -z "${tag:-}" && "$ref" == v* ]]; then
+            tag="$ref"
+          fi
+          if [[ -z "${cr:-}" ]]; then
+            cr=true
+          fi
+
+          sha=$(gh api "repos/$SOURCE_REPO/commits/$ref" --jq .sha)
+          echo "ref=$ref" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "create_release=$cr" >> "$GITHUB_OUTPUT"
+          echo "source_sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "Building $SOURCE_REPO@$ref (sha=$sha) release_tag=${tag:-none} create_release=$cr"
+
+  test:
+    name: Test
+    needs: resolve
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: src
+    steps:
+      - name: Checkout private source
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.SOURCE_REPO }}
+          ref: ${{ needs.resolve.outputs.ref }}
+          token: ${{ secrets.SOURCE_TOKEN }}
+          path: src
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore
+        run: dotnet restore VideoFunnel.sln
+
+      - name: Test
+        run: dotnet test VideoFunnel.Tests/VideoFunnel.Tests.csproj -c Release --no-restore
+
+  build-aot:
+    name: AOT ${{ matrix.rid }}
+    needs: [resolve, test]
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            rid: linux-x64
+            archive: tar.gz
+          - os: ubuntu-24.04-arm
+            rid: linux-arm64
+            archive: tar.gz
+          - os: windows-latest
+            rid: win-x64
+            archive: zip
+          - os: windows-latest
+            rid: win-arm64
+            archive: zip
+          - os: macos-latest
+            rid: osx-arm64
+            archive: tar.gz
+    defaults:
+      run:
+        working-directory: src
+    env:
+      STAMP_TAG: ${{ needs.resolve.outputs.tag }}
+      SOURCE_SHA: ${{ needs.resolve.outputs.source_sha }}
+    steps:
+      - name: Checkout private source
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.SOURCE_REPO }}
+          ref: ${{ needs.resolve.outputs.ref }}
+          token: ${{ secrets.SOURCE_TOKEN }}
+          path: src
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Install Linux AOT prerequisites
+        if: runner.os == 'Linux'
+        working-directory: ${{ github.workspace }}
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang zlib1g-dev
+
+      - name: Publish Native AOT
+        shell: bash
+        run: |
+          set -euo pipefail
+          ver="${STAMP_TAG:-}"
+          ver="${ver#v}"
+          if [[ ! "$ver" =~ ^[0-9]+(\.[0-9]+)*([-+][0-9A-Za-z.-]+)?$ ]]; then
+            ver="0.0.0-dev+${SOURCE_SHA:0:8}"
+          fi
+          echo "Embedding version: $ver"
+
+          out="publish/${{ matrix.rid }}"
+          mkdir -p "$out"
+          dotnet publish "$PROJECT" \
+            -c Release \
+            -r "${{ matrix.rid }}" \
+            --self-contained true \
+            -p:PublishAot=true \
+            -p:StripSymbols=true \
+            -p:Version="$ver" \
+            -p:InformationalVersion="$ver" \
+            -o "$out"
+
+      - name: Package artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          rid="${{ matrix.rid }}"
+          src="publish/${rid}"
+          stage="dist/stage/${rid}"
+          mkdir -p "$stage" dist
+
+          if [[ "$rid" == win-* ]]; then
+            cp "$src/${APP_NAME}.exe" "$stage/"
+          else
+            cp "$src/${APP_NAME}" "$stage/"
+            chmod +x "$stage/${APP_NAME}"
+          fi
+
+          extras_ok=1
+          if [[ -d "$src/wwwroot" ]]; then extras_ok=0; fi
+          if compgen -G "$src/*.json" > /dev/null; then extras_ok=0; fi
+          if [[ "$extras_ok" -ne 1 ]]; then
+            echo "Publish output still has sidecar files; expected a single native binary" >&2
+            ls -la "$src" >&2
+            exit 1
+          fi
+
+          rm -f "$stage"/*.dbg "$stage"/*.pdb
+
+          asset="${APP_NAME}-${rid}"
+          if [[ "${{ matrix.archive }}" == "zip" ]]; then
+            rm -f "dist/${asset}.zip"
+            python -c "import shutil, sys; shutil.make_archive(sys.argv[1], 'zip', sys.argv[2])" \
+              "dist/${asset}" "$stage"
+          else
+            tar -C "$stage" -czf "dist/${asset}.tar.gz" .
+          fi
+          ls -lh dist/
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: aot-${{ matrix.rid }}
+          path: src/dist/${{ env.APP_NAME }}-${{ matrix.rid }}.*
+          if-no-files-found: error
+          retention-days: 3
+
+  build-aot-musl:
+    name: AOT ${{ matrix.rid }}
+    needs: [resolve, test]
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - rid: linux-musl-x64
+            platform: linux/amd64
+            image: mcr.microsoft.com/dotnet/sdk:11.0.100-rc.1-alpine3.24-aot-amd64
+          - rid: linux-musl-arm64
+            platform: linux/arm64
+            image: mcr.microsoft.com/dotnet/sdk:11.0.100-rc.1-alpine3.24-aot-arm64v8
+    env:
+      STAMP_TAG: ${{ needs.resolve.outputs.tag }}
+      SOURCE_SHA: ${{ needs.resolve.outputs.source_sha }}
+    steps:
+      - name: Checkout private source
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.SOURCE_REPO }}
+          ref: ${{ needs.resolve.outputs.ref }}
+          token: ${{ secrets.SOURCE_TOKEN }}
+          path: src
+
+      - name: Set up QEMU
+        if: matrix.platform != 'linux/amd64'
+        uses: docker/setup-qemu-action@v3
+
+      - name: Publish Native AOT (Alpine container)
+        working-directory: src
+        env:
+          RID: ${{ matrix.rid }}
+          IMAGE: ${{ matrix.image }}
+          PLATFORM: ${{ matrix.platform }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          ver="${STAMP_TAG:-}"
+          ver="${ver#v}"
+          if [[ ! "$ver" =~ ^[0-9]+(\.[0-9]+)*([-+][0-9A-Za-z.-]+)?$ ]]; then
+            ver="0.0.0-dev+${SOURCE_SHA:0:8}"
+          fi
+          echo "Embedding version: $ver"
+
+          out="publish/${RID}"
+          mkdir -p "$out"
+
+          docker run --rm --platform "$PLATFORM" \
+            -v "$PWD":/work -w /work \
+            -e PROJECT -e RID -e ver="$ver" \
+            "$IMAGE" \
+            sh -c 'apk add --no-cache clang build-base zlib-dev >/dev/null &&
+              dotnet publish "$PROJECT" \
+                -c Release \
+                -r "$RID" \
+                --self-contained true \
+                -p:PublishAot=true \
+                -p:StripSymbols=true \
+                -p:Version="$ver" \
+                -p:InformationalVersion="$ver" \
+                -o "publish/$RID"'
+
+      - name: Package artifact
+        working-directory: src
+        shell: bash
+        run: |
+          set -euo pipefail
+          rid="${{ matrix.rid }}"
+          bin="publish/${rid}"
+          stage="dist/stage/${rid}"
+          mkdir -p "$stage" dist
+
+          cp "$bin/${APP_NAME}" "$stage/"
+          chmod +x "$stage/${APP_NAME}"
+
+          extras_ok=1
+          if [[ -d "$bin/wwwroot" ]]; then extras_ok=0; fi
+          if compgen -G "$bin/*.json" > /dev/null; then extras_ok=0; fi
+          if [[ "$extras_ok" -ne 1 ]]; then
+            echo "Publish output still has sidecar files; expected a single native binary" >&2
+            ls -la "$bin" >&2
+            exit 1
+          fi
+
+          rm -f "$stage"/*.dbg "$stage"/*.pdb
+
+          if command -v readelf >/dev/null 2>&1; then
+            interp=$(readelf -l "$stage/${APP_NAME}" | awk '/Requesting program interpreter/ {print $NF}' | tr -d ']')
+            echo "ELF interpreter: ${interp:-unknown}"
+            case "$interp" in
+              *ld-musl*) ;;
+              *)
+                echo "Expected musl interpreter, got: ${interp:-none}" >&2
+                exit 1
+                ;;
+            esac
+          fi
+
+          asset="${APP_NAME}-${rid}"
+          tar -C "$stage" -czf "dist/${asset}.tar.gz" .
+          ls -lh dist/
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: aot-${{ matrix.rid }}
+          path: src/dist/${{ env.APP_NAME }}-${{ matrix.rid }}.*
+          if-no-files-found: error
+          retention-days: 3
+
+  release:
+    name: GitHub Release
+    needs: [resolve, build-aot, build-aot-musl]
+    runs-on: ubuntu-latest
+    if: needs.resolve.outputs.create_release == 'true'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download AOT artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: aot-*
+          path: artifacts
+          merge-multiple: true
+
+      - name: Resolve release tag
+        id: meta
+        env:
+          SOURCE_SHA: ${{ needs.resolve.outputs.source_sha }}
+          TAG_IN: ${{ needs.resolve.outputs.tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="$TAG_IN"
+          if [[ -z "$tag" ]]; then
+            tag="aot-${SOURCE_SHA:0:8}"
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          ls -lah artifacts/
+
+      - name: Create or update GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.meta.outputs.tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          files=(artifacts/vf-*)
+          if (( ${#files[@]} == 0 )); then
+            echo "No AOT archives found under artifacts/" >&2
+            exit 1
+          fi
+
+          notes=$'Native AOT builds of Video Funnel (`vf`).\n\n'
+          notes+=$'| Platform | Archive |\n| --- | --- |\n'
+          notes+=$'| Linux x64 (glibc) | `vf-linux-x64.tar.gz` |\n'
+          notes+=$'| Linux ARM64 (glibc) | `vf-linux-arm64.tar.gz` |\n'
+          notes+=$'| Alpine / musl x64 | `vf-linux-musl-x64.tar.gz` |\n'
+          notes+=$'| Alpine / musl ARM64 | `vf-linux-musl-arm64.tar.gz` |\n'
+          notes+=$'| Windows x64 | `vf-win-x64.zip` |\n'
+          notes+=$'| Windows ARM64 | `vf-win-arm64.zip` |\n'
+          notes+=$'| macOS Apple Silicon | `vf-osx-arm64.tar.gz` |\n\n'
+          notes+=$'Source: private `huiyuanai709/VideoFunnel`. Each archive is a single native `vf` / `vf.exe` (web UI embedded). Default listen `0.0.0.0:8080`.'
+
+          extra_args=()
+          if [[ "$TAG" == aot-* ]]; then
+            extra_args+=(--draft)
+          fi
+          if [[ "$TAG" == *-* && "$TAG" != v* ]]; then
+            extra_args+=(--prerelease)
+          fi
+
+          printf '%s\n' "$notes" > release-notes.md
+
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "${files[@]}" --clobber
+          else
+            gh release create "$TAG" "${files[@]}" \
+              --title "Video Funnel ${TAG}" \
+              --notes-file release-notes.md \
+              "${extra_args[@]}"
+          fi
+
+      - name: Keep only latest 3 releases
+        if: ${{ !startsWith(steps.meta.outputs.tag, 'aot-') }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          KEEP_COUNT: "3"
+        shell: bash
+        run: bash .github/scripts/cleanup-old-releases.sh "$GITHUB_REPOSITORY" "$KEEP_COUNT"
