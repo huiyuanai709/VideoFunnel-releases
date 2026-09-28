@@ -400,7 +400,9 @@ jobs:
           notes+=$'| Windows x64 | `vf-win-x64.zip` |\n'
           notes+=$'| Windows ARM64 | `vf-win-arm64.zip` |\n'
           notes+=$'| macOS Apple Silicon | `vf-osx-arm64.tar.gz` |\n\n'
-          notes+=$'Source: private `huiyuanai709/VideoFunnel`. Each archive is a single native `vf` / `vf.exe` (web UI embedded). Default listen `0.0.0.0:8080`.'
+          notes+=$'Source: private `huiyuanai709/VideoFunnel`. Each archive is a single native `vf` / `vf.exe` (web UI embedded). Default listen `0.0.0.0:8080`.\n\n'
+          notes+=$'## 有问题加群\n\n'
+          notes+=$'使用中遇到卡顿、登录失败、爆米花挂载等问题，请加 QQ 群：**754661272**（扫码见 [README](https://github.com/huiyuanai709/VideoFunnel-releases#有问题加群)）。'
 
           extra_args=()
           if [[ "$TAG" == aot-* ]]; then
@@ -414,6 +416,7 @@ jobs:
 
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" "${files[@]}" --clobber
+            gh release edit "$TAG" --notes-file release-notes.md
           else
             gh release create "$TAG" "${files[@]}" \
               --title "Video Funnel ${TAG}" \
