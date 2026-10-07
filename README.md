@@ -30,6 +30,16 @@
 
 程序可自动检查更新；也可在网页里打开「更新与开机自启」。
 
+## Home Assistant 安装
+
+HA 用户可以直接装加载项（amd64 / aarch64）：设置 → 加载项 → 加载项商店 → 右上角 ⋮ → **仓库**，添加：
+
+```
+https://github.com/huiyuanai709/VideoFunnel-releases
+```
+
+然后在商店里安装 **VideoFunnel** 并启动，点「打开网页界面」（默认端口 8080）。配置保存在加载项配置目录，版本随本仓库 Releases 自动更新。详见 [加载项说明](videofunnel/DOCS.md)。
+
 ## 基本用法
 
 1. **登录网盘**  
