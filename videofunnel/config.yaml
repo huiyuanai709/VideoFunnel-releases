@@ -1,0 +1,29 @@
+name: VideoFunnel
+version: "0.2.18"
+slug: videofunnel
+description: 天翼 / 阿里 / 夸克网盘视频加速代理，提供 WebDAV / SMB / 播放直链
+url: https://github.com/huiyuanai709/VideoFunnel-releases
+arch:
+  - amd64
+  - aarch64
+startup: application
+boot: auto
+init: false
+host_network: true
+webui: "http://[HOST]:[PORT:8080]/"
+watchdog: "tcp://[HOST]:[PORT:8080]"
+ports:
+  8080/tcp: 8080
+ports_description:
+  8080/tcp: Web UI / API / WebDAV (/dav)
+map:
+  - addon_config:rw
+  - share:rw
+options:
+  port: 8080
+  host: 0.0.0.0
+  update_check: false
+schema:
+  port: port
+  host: str
+  update_check: bool
