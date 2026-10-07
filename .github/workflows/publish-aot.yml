@@ -431,3 +431,55 @@ jobs:
           KEEP_COUNT: "3"
         shell: bash
         run: bash .github/scripts/cleanup-old-releases.sh "$GITHUB_REPOSITORY" "$KEEP_COUNT"
+
+      # Home Assistant add-on (repository.yaml + videofunnel/ at repo root):
+      # point it at the release that was just published. Stable v* tags only;
+      # never downgrade when an older tag is re-run.
+      - name: Bump Home Assistant add-on version
+        if: ${{ startsWith(steps.meta.outputs.tag, 'v') && !contains(steps.meta.outputs.tag, '-') }}
+        env:
+          TAG: ${{ steps.meta.outputs.tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          v="${TAG#v}"
+          dir=videofunnel
+          if [[ ! -f "$dir/config.yaml" ]]; then
+            echo "No $dir/config.yaml; skipping add-on bump"
+            exit 0
+          fi
+
+          git fetch origin main
+          git checkout -B main origin/main
+
+          current=$(sed -nE 's/^version: *"?([^"]+)"?.*/\1/p' "$dir/config.yaml")
+          if [[ "$current" == "$v" ]]; then
+            echo "Add-on already at $v"
+            exit 0
+          fi
+          newest=$(printf '%s\n%s\n' "$current" "$v" | sort -V | tail -1)
+          if [[ "$newest" != "$v" ]]; then
+            echo "Add-on at $current is newer than $v; not downgrading"
+            exit 0
+          fi
+
+          sed -i -E "s/^version: .*/version: \"$v\"/" "$dir/config.yaml"
+          sed -i -E "s/^( *VF_VERSION:).*/\1 \"$v\"/" "$dir/build.yaml"
+          sed -i -E "s/^ARG VF_VERSION=.*/ARG VF_VERSION=$v/" "$dir/Dockerfile"
+          if ! grep -q "^## $v\$" "$dir/CHANGELOG.md"; then
+            entry="## $v"$'\n'"- 更新到 VideoFunnel v$v：https://github.com/${GITHUB_REPOSITORY}/releases/tag/v$v"$'\n'
+            awk -v entry="$entry" 'done==0 && /^## /{print entry; done=1} {print} END{if(done==0) print "\n" entry}' \
+              "$dir/CHANGELOG.md" > "$dir/CHANGELOG.md.new"
+            mv "$dir/CHANGELOG.md.new" "$dir/CHANGELOG.md"
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "$dir"
+          git commit -m "ha-addon: bump VideoFunnel to $v"
+          for i in 1 2 3; do
+            if git push origin HEAD:main; then exit 0; fi
+            git pull --rebase origin main
+          done
+          echo "Failed to push add-on bump" >&2
+          exit 1
