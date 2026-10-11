@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.2.19
+- 更新到 VideoFunnel v0.2.19：https://github.com/huiyuanai709/VideoFunnel-releases/releases/tag/v0.2.19
+
 ## 0.2.18
 - 降低串流 CPU：跳过超出缓存的整段缓存探测、按 1 MiB 合并写出、池化缓冲（天翼 limitrate CPU/GB 约降 3–4 倍，内存分配大幅减少）。
 

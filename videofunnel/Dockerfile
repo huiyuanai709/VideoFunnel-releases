@@ -2,7 +2,7 @@ ARG BUILD_FROM=ghcr.io/home-assistant/amd64-base:3.21
 FROM ${BUILD_FROM}
 
 ARG BUILD_ARCH=amd64
-ARG VF_VERSION=0.2.18
+ARG VF_VERSION=0.2.19
 # China: set at build time, e.g. GH_MIRROR=https://ghfast.top/https://github.com
 ARG GH_MIRROR=https://github.com
 # Optional pinned SHA256 of the archive (release publishes no checksum file).
