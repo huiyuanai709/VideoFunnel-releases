@@ -28,7 +28,7 @@ permissions:
   contents: write
 
 env:
-  DOTNET_VERSION: "11.0.100-rc.1.26425.128"
+  DOTNET_VERSION: "11.0.100"
   PROJECT: VideoFunnel.csproj
   APP_NAME: vf
   SOURCE_REPO: huiyuanai709/VideoFunnel
@@ -243,11 +243,11 @@ jobs:
           - os: ubuntu-latest
             rid: linux-musl-x64
             platform: linux/amd64
-            image: mcr.microsoft.com/dotnet/sdk:11.0.100-rc.1-alpine3.24-aot-amd64
+            image: mcr.microsoft.com/dotnet/sdk:11.0.100-alpine3.24-aot-amd64
           - os: ubuntu-24.04-arm
             rid: linux-musl-arm64
             platform: linux/arm64
-            image: mcr.microsoft.com/dotnet/sdk:11.0.100-rc.1-alpine3.24-aot-arm64v8
+            image: mcr.microsoft.com/dotnet/sdk:11.0.100-alpine3.24-aot-arm64v8
     env:
       STAMP_TAG: ${{ needs.resolve.outputs.tag }}
       SOURCE_SHA: ${{ needs.resolve.outputs.source_sha }}
