@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.2.22
+- 更新到 VideoFunnel v0.2.22：https://github.com/huiyuanai709/VideoFunnel-releases/releases/tag/v0.2.22
+
 ## 0.2.21
 - 更新到 VideoFunnel v0.2.21：https://github.com/huiyuanai709/VideoFunnel-releases/releases/tag/v0.2.21
 
